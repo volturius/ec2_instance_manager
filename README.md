@@ -1,0 +1,1 @@
+CLI utility to list available instances, start and stop instances, and to update DNS with IP of running instance. Largely solves the problem of connecting to remote instance without having it run all the time and without paying for unused elastic IPs.
