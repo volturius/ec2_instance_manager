@@ -60,7 +60,10 @@ def main(argv=None):
     regions = boto.ec2.regions()
     for region in regions:
         print "getting region '%s'" % region
-        get_instance_names(region)
+
+        e2a = ec2admin(region)
+
+        e2a.get_instance_names()
         print
 
 
