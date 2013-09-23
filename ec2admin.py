@@ -49,26 +49,56 @@ class ec2admin(object):
 
 def main(argv=None):
 
-    parser = argparse.ArgumentParser(description='Manage EC2 Instances')
-    parser.add_argument('command',  metavar='COMMAND', nargs=1, type=str, help="command 'admin' or 'tag'")
+    # create the top-level parser
+    parser = argparse.ArgumentParser()
 
-    parser.add_argument('--version', action='version', version='%(prog)s 2.0')
+    #parser.add_argument('command', metavar='COMMAND', nargs=None, help='ec2 command')
+    parser.add_argument('--domain', metavar='ROUTE53_DOMAIN_NAME', nargs=1, help='set route53 domain name')
+    parser.add_argument('--version', action='store_true')
 
     subparsers = parser.add_subparsers()
-    subparsers.add_parser('instance', metavar='INSTANCE', nargs=1, type=str, help='instance name or id')
+
+    # create the parser for the "list" command
+    # NOTE: nargs='?' means argument is optional
+    parser_start = subparsers.add_parser('list', help='start specified instance')
+    parser_start.add_argument('list_region', default='ALL', nargs='?', help='instance help')
+
+    # create the parser for the "start" command
+    # NOTE: no nargs means argument is required
+    parser_start = subparsers.add_parser('start', help='start specified instance')
+    parser_start.add_argument('start_instance', default=None, metavar='ID', help='instance help')
+
+    # create the parser for the "stop" command
+    parser_stop = subparsers.add_parser('stop', help='stop specified instance')
+    parser_stop.add_argument('stop_instance', default=None, help='instance help')
+
+    # create the parser for the "dns" command
+    parser_stop = subparsers.add_parser('dns', help='update dns name in route53')
+    parser_stop.add_argument('domain_name', default=None, help='domain help')
 
     args = parser.parse_args()
-    print args
 
-    regions = boto.ec2.regions()
-    for region in regions:
-        print "getting region '%s'" % region
+    if hasattr(args, 'list_region'):
+        print "listing region %s" % args.list_region
+        regions = boto.ec2.regions()
+        for region in regions:
+            print "getting region '%s'" % region
 
-        ec2a = ec2admin(region)
+            ec2a = ec2admin(region)
 
-        ec2a.get_instance_names()
-        print
+            ec2a.get_instance_names()
+            print
+
+    if hasattr(args, 'stop_instance'):
+        print "stopping instance %s" % args.stop_instance
+
+    if hasattr(args, 'start_instance'):
+        print "starting instance %s" % args.start_instance
+
+    if hasattr(args, 'domain_name'):
+        print "updating dns for domain %s" % args.domain_name
 
 
 if __name__ == "__main__":
     sys.exit(main())
+
