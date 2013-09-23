@@ -32,10 +32,10 @@ class ec2admin(object):
 
             for inst in instances:
                 print str(inst) + " ",
-                print inst.tags['Name']
+                print "'%s'" % inst.tags['Name']
+                print "\t%s" % inst.state
                 print "\t%s" % inst.instance_type
                 print "\t%s" % inst.placement
-                print "\t%s" % inst.state
                 print "\t%s" % inst.key_name
                 print "\t%s" % inst.dns_name
                 print "\t%s" % inst.private_ip_address
@@ -50,9 +50,12 @@ class ec2admin(object):
 def main(argv=None):
 
     parser = argparse.ArgumentParser(description='Manage EC2 Instances')
-
     parser.add_argument('command',  metavar='COMMAND', nargs=1, type=str, help="command 'admin' or 'tag'")
-    parser.add_argument('instance', metavar='INSTANCE', nargs=1, type=str, help='instance name or id')
+
+    parser.add_argument('--version', action='version', version='%(prog)s 2.0')
+
+    subparsers = parser.add_subparsers()
+    subparsers.add_parser('instance', metavar='INSTANCE', nargs=1, type=str, help='instance name or id')
 
     args = parser.parse_args()
     print args
@@ -61,9 +64,9 @@ def main(argv=None):
     for region in regions:
         print "getting region '%s'" % region
 
-        e2a = ec2admin(region)
+        ec2a = ec2admin(region)
 
-        e2a.get_instance_names()
+        ec2a.get_instance_names()
         print
 
 
