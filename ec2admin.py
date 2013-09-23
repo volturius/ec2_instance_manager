@@ -2,6 +2,12 @@
 
 ## usage: ec2admin start awsbox
 ## usage: ec2admin tag awsbox 'domain=volturius.com'
+# ec2admin list --regions us-east-1 us-west-1 --matchname php --idZZ
+
+# TODO:
+#   * implement substring match on instance name listing
+#   * start/stop logic
+#   * route53 hooks
 
 import sys
 import boto.ec2
@@ -15,7 +21,7 @@ class ec2admin(object):
     def add_tag(self, name, instance):
         instance.add_tag("Name","{{INSERT NAME}}")
 
-    def get_instance_names(self, instance_list):
+    def get_instance_names(self, instance_list, state):
 
         conn = boto.ec2.connect_to_region(self.region)
 
@@ -33,18 +39,25 @@ class ec2admin(object):
 
             for inst in instances:
 
-                if ((instance_list == None) or (inst.tags['Name'] in instance_list)):
+#               if ((instance_list == None) or (inst.tags['Name'] in instance_list)):
+#                print instance_list
+#                print inst.tags['Name']
+#                if ((instance_list == None) or any(inst.tags['Name'] in s for s in instance_list)):
+#
+                if ((instance_list == None) or any(s in inst.tags['Name'] for s in instance_list)):
 
-                    print str(inst) + " ",
-                    print "'%s'" % inst.tags['Name']
-                    print "\t%s" % inst.state
-                    print "\t%s" % inst.instance_type
-                    print "\t%s" % inst.placement
-                    print "\t%s" % inst.key_name
-                    print "\t%s" % inst.dns_name
-                    print "\t%s" % inst.private_ip_address
-                    print "\t%s" % inst.public_dns_name
-                    print "\t%s" % inst.ip_address
+                    if (state == None or inst.state == state):
+
+                        print str(inst) + " ",
+                        print "'%s'" % inst.tags['Name']
+                        print "\t%s" % inst.state
+                        print "\t%s" % inst.instance_type
+                        print "\t%s" % inst.placement
+                        print "\t%s" % inst.key_name
+                        print "\t%s" % inst.dns_name
+                        print "\t%s" % inst.private_ip_address
+                        print "\t%s" % inst.public_dns_name
+                        print "\t%s" % inst.ip_address
 #            print "\t%s" % inst.get_console_output().output
 
 
@@ -64,8 +77,9 @@ def main(argv=None):
 
     # create the parser for the "list" command
     parser_start = subparsers.add_parser('list', help='start specified instance')
-    parser_start.add_argument('list_regions', default='ALL', nargs='*', help='instance help')
-    parser_start.add_argument('--instances', nargs='*', help='instance help')
+    parser_start.add_argument('--regions', default='ALL', nargs='*', help='region names')
+    parser_start.add_argument('--instances', nargs='*', help='instance names (or subsstring')
+    parser_start.add_argument('--state', help='only list instances in this state')
 
     # create the parser for the "start" command
     parser_start = subparsers.add_parser('start', help='start specified instance')
@@ -81,12 +95,13 @@ def main(argv=None):
 
     args = parser.parse_args()
 
-    if hasattr(args, 'list_regions'):
+    if hasattr(args, 'regions'):
 
         ec2_regions = [region.name for region in boto.ec2.regions()]
 
         instances = args.instances
-        regions = args.list_regions
+        state = args.state
+        regions = args.regions
 
         if (regions == 'ALL'):
             regions = ec2_regions
@@ -103,7 +118,7 @@ def main(argv=None):
 
             ec2a = ec2admin(region)
 
-            ec2a.get_instance_names(instances)
+            ec2a.get_instance_names(instances, state)
             print
 
     if hasattr(args, 'stop_instance'):
