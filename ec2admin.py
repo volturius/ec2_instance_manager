@@ -1,8 +1,11 @@
 #!/usr/bin/python
 
-## usage: ec2admin start awsbox
-## usage: ec2admin tag awsbox 'domain=volturius.com'
-# ec2admin list --regions us-east-1 us-west-1 --matchname php --idZZ
+# usage:
+# ec2admin list --regions us-east-1 us-west-1 --match php --id i-d863dcb3
+# ec2admin start instance-id [instance-id ...]
+# ec2admin stop instance-id [instance-id ...]
+# ec2admin tag mytag myvalue --id i-d863dcb3
+# ec2admin dns 
 
 # TODO:
 #   * implement substring match on instance name listing
@@ -21,7 +24,7 @@ class ec2admin(object):
     def add_tag(self, name, instance):
         instance.add_tag("Name","{{INSERT NAME}}")
 
-    def get_instance_names(self, instance_list, state):
+    def get_instance_names(self, instance_names, state):
 
         conn = boto.ec2.connect_to_region(self.region)
 
@@ -39,11 +42,6 @@ class ec2admin(object):
 
             for inst in instances:
 
-#               if ((instance_list == None) or (inst.tags['Name'] in instance_list)):
-#                print instance_list
-#                print inst.tags['Name']
-#                if ((instance_list == None) or any(inst.tags['Name'] in s for s in instance_list)):
-#
                 if ((instance_list == None) or any(s in inst.tags['Name'] for s in instance_list)):
 
                     if (state == None or inst.state == state):
@@ -78,20 +76,29 @@ def main(argv=None):
     # create the parser for the "list" command
     parser_start = subparsers.add_parser('list', help='start specified instance')
     parser_start.add_argument('--regions', default='ALL', nargs='*', help='region names')
-    parser_start.add_argument('--instances', nargs='*', help='instance names (or subsstring')
+    parser_start.add_argument('--match', nargs='*', help='limit listing to instance names (or subsstring')
+    parser_start.add_argument('--id', nargs='*', help='instance id')
     parser_start.add_argument('--state', help='only list instances in this state')
 
     # create the parser for the "start" command
     parser_start = subparsers.add_parser('start', help='start specified instance')
     parser_start.add_argument('start_instance', default=None, metavar='ID', help='instance help')
+    parser_start.add_argument('--id', nargs='*', help='instance names (or subsstring')
 
     # create the parser for the "stop" command
     parser_stop = subparsers.add_parser('stop', help='stop specified instance')
     parser_stop.add_argument('stop_instance', default=None, help='instance help')
+    parser_start.add_argument('--id', nargs='*', help='instance names (or subsstring')
 
     # create the parser for the "dns" command
     parser_stop = subparsers.add_parser('dns', help='update dns name in route53')
     parser_stop.add_argument('domain_name', default=None, help='domain help')
+
+    # create the parser for the "tag" command
+    parser_stop = subparsers.add_parser('tag', help='update instance tag')
+    parser_stop.add_argument('name', default=None, help='domain help')
+    parser_stop.add_argument('value', default=None, help='domain help')
+    parser_start.add_argument('--id', nargs='*', help='instance id')
 
     args = parser.parse_args()
 
@@ -99,7 +106,7 @@ def main(argv=None):
 
         ec2_regions = [region.name for region in boto.ec2.regions()]
 
-        instances = args.instances
+        name_match = args.match
         state = args.state
         regions = args.regions
 
@@ -118,7 +125,7 @@ def main(argv=None):
 
             ec2a = ec2admin(region)
 
-            ec2a.get_instance_names(instances, state)
+            ec2a.get_instance_names(name_match, state)
             print
 
     if hasattr(args, 'stop_instance'):
@@ -126,6 +133,9 @@ def main(argv=None):
 
     if hasattr(args, 'start_instance'):
         print "starting instance %s" % args.start_instance
+
+    if hasattr(args, 'tag'):
+        print "updating tag for instance %s" % args.domain_name
 
     if hasattr(args, 'domain_name'):
         print "updating dns for domain %s" % args.domain_name
