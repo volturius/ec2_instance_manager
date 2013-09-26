@@ -42,7 +42,7 @@ class ec2admin(object):
 
             for inst in instances:
 
-                if ((instance_list == None) or any(s in inst.tags['Name'] for s in instance_list)):
+                if ((instance_names == None) or any(s in inst.tags['Name'] for s in instance_names)):
 
                     if (state == None or inst.state == state):
 
@@ -83,7 +83,7 @@ def main(argv=None):
     parser.add_argument('--domain', metavar='ROUTE53_DOMAIN_NAME', nargs=1, help='set route53 domain name')
     parser.add_argument('--version', action='store_true')
 
-    subparsers = parser.add_subparsers()
+    subparsers = parser.add_subparsers(dest='command')
 
     # create the parser for the "list" command
     parser_start = subparsers.add_parser('list', help='start specified instance')
@@ -94,9 +94,9 @@ def main(argv=None):
 
     # create the parser for the "start" command
     parser_start = subparsers.add_parser('start', help='start specified instance')
-    parser_start.add_argument('start_instance', default=None, metavar='ID', help='instance help')
-    parser_start.add_argument('--startregion', nargs='*', help='instance names (or subsstring')
-    parser_start.add_argument('--startid', nargs='*', help='instance names (or subsstring')
+#    parser_start.add_argument('start_instance', default=None, metavar='ID', help='instance help')
+    parser_start.add_argument('--startregion', help='instance region')
+    parser_start.add_argument('--startid', nargs='*', help='instance ids')
 
     # create the parser for the "stop" command
     parser_stop = subparsers.add_parser('stop', help='stop specified instance')
@@ -119,7 +119,7 @@ def main(argv=None):
     print args
     sys.exit(99)
 
-    if hasattr(args, 'regions'):
+    if args.command == 'list':
 
         ec2_regions = [region.name for region in boto.ec2.regions()]
 
@@ -145,13 +145,13 @@ def main(argv=None):
             ec2a.get_instance_names(name_match, state)
             print
 
-    if hasattr(args, 'stop_instance'):
-        print "stopping instance %s" % args.stop_instance
+    if hasattr(args, 'stop'):
+        print "stopping instance %s" % args.sto
 
         ec2a = ec2admin(stopregion)
         ec2a.stop_instance(id)
 
-    if hasattr(args, 'start_instance'):
+    if hasattr(args, 'startregion'):
         print "starting instance %s" % args.start_instance
 
         ec2a = ec2admin(startregion)
