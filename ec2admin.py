@@ -1,15 +1,15 @@
 #!/usr/bin/python
 
 # usage:
-# ec2admin list --regions us-east-1 us-west-1 --match php --id i-d863dcb3
-# ec2admin start instance-id [instance-id ...]
-# ec2admin stop instance-id [instance-id ...]
+# ec2admin.py list
+# ec2admin.py list --regions us-west-2
+# ec2admin.py start us-west-2 i-517d9566
+# ec2admin.py stop  us-west-2 i-517d9566
 # ec2admin tag mytag myvalue --id i-d863dcb3
 # ec2admin dns 
 
 # TODO:
-#   * implement substring match on instance name listing
-#   * start/stop logic
+#   * instnance tagging
 #   * route53 hooks
 
 import os
@@ -44,7 +44,7 @@ class ec2admin(object):
 
         for reservation in reservations:
             for instance in reservation.instances:
-                instances[instance.image_id] = instance
+                instances[instance.id] = instance
 
         return instances
 
@@ -77,12 +77,12 @@ class ec2admin(object):
     def start_instance(self, id):
 
         print "starting %s in region %s" % (id, self.region)
-        self.conn.run_instances(id)
+        self.conn.start_instances(instance_ids=[id], dry_run=False)
     
-    def stop_instance(self, region, id):
+    def stop_instance(self, id):
 
         print "stopping %s in region %s" % (id, self.region)
-        self.conn.stop_instances(id)
+        self.conn.stop_instances(instance_ids=[id])
     
     def get_console_text(self, id):
 
@@ -111,13 +111,12 @@ def main(argv=None):
     # create the parser for the "start" command
     parser_start = subparsers.add_parser('start', help='start specified instance')
     parser_start.add_argument('region', help='instance region')
-    parser_start.add_argument('id', help='instance ids')
+    parser_start.add_argument('id', help='instance id')
 
     # create the parser for the "stop" command
     parser_stop = subparsers.add_parser('stop', help='stop specified instance')
-    parser_stop.add_argument('stop_instance', default=None, help='instance help')
-    parser_stop.add_argument('--stopregion', nargs='*', help='instance names (or subsstring')
-    parser_stop.add_argument('--stopid', nargs='*', help='instance names (or subsstring')
+    parser_stop.add_argument('region', help='instance region')
+    parser_stop.add_argument('id', help='instance id')
 
     # create the parser for the "dns" command
     parser_dns = subparsers.add_parser('dns', help='update dns name in route53')
@@ -175,10 +174,10 @@ def main(argv=None):
         ec2a.start_instance(args.id)
 
     if args.command == 'stop':
-        print "stopping instance %s" % args.sto
+        print "stopping instance '%s' in region '%s'" % (args.id, args.region)
 
-        ec2a = ec2admin(stopregion)
-        ec2a.stop_instance(id)
+        ec2a = ec2admin(args.region)
+        ec2a.stop_instance(args.id)
 
     if args.command == 'tag':
         print "updating tag for instance %s" % args.domain_name
