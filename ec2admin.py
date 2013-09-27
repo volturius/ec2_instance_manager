@@ -23,16 +23,30 @@ AWS_SECRET_ACCESS_KEY = ''
 class ec2admin(object):
 
     def __init__(self, region):
-        self.region = region
-        self.conn = boto.ec2.connect_to_region(self.region)
 
-    def _compile_cache:
+        self.region    = region
+        self.conn      = boto.ec2.connect_to_region(self.region)
+        self.ec2_regions = [r.name for r in boto.ec2.regions()]
+
+        if not self.region in self.ec2_regions:
+            print "ERROR: bad region specified %s" % self.region
+            sys.exit(1)
+
+        self.instances = self._compile_cache()
+
+
+    def _compile_cache(self):
+
+        print self.conn
+
         reservations = self.conn.get_all_instances()
+        instances = {}
 
         for reservation in reservations:
             for instance in reservation.instances:
+                instances[instance.image_id] = instance
 
-                self.instances[instance.id] = instances
+        return instances
 
 
     def add_tag(self, name, instance):
@@ -47,7 +61,10 @@ class ec2admin(object):
                 if (state == None or inst.state == state):
 
                     print str(inst) + " ",
-                    print "'%s'" % inst.tags['Name']
+                    if 'Name' in inst.tags:
+                        print "'%s'" % inst.tags['Name']
+                    print "\t%s" % inst.id
+                    print "\t%s" % inst.image_id
                     print "\t%s" % inst.state
                     print "\t%s" % inst.instance_type
                     print "\t%s" % inst.placement
@@ -67,17 +84,9 @@ class ec2admin(object):
         print "stopping %s in region %s" % (id, self.region)
         self.conn.stop_instances(id)
     
-    def get_console_text(id):
+    def get_console_text(self, id):
 
         print "\t%s" % self.instances[id].get_console_output().output
-
-
-def check_regions(master, specified):
-
-    if set(specified).issubset(master):
-        return True
-
-    return False
 
 
 ## Main program here
@@ -101,7 +110,7 @@ def main(argv=None):
 
     # create the parser for the "start" command
     parser_start = subparsers.add_parser('start', help='start specified instance')
-    parser_start.add_argument('region', nargs=1, help='instance region')
+    parser_start.add_argument('region', help='instance region')
     parser_start.add_argument('id', help='instance ids')
 
     # create the parser for the "stop" command
@@ -135,10 +144,9 @@ def main(argv=None):
         print "       Try setting AWS_SECRET_ACCESS_KEY and AWS_ACCESS_KEY_ID in environment"
         exit(1)
 
-    print args
-#   sys.exit(99)
+#    print args
+#    sys.exit(99)
 
-    ec2_regions = [region.name for region in boto.ec2.regions()]
 
     if args.command == 'list':
 
@@ -146,22 +154,14 @@ def main(argv=None):
         state = args.state
         regions = args.regions
 
-        if not check_regions(ec2_regions, regions):
-            print "ERROR: bad regions specified %s" % regions
-            sys.exit(1)
-
         if (regions == 'ALL'):
-            regions = ec2_regions
+            regions = [r.name for r in boto.ec2.regions()]
 
         print "listing region %s" % regions
 
         for region in regions:
 
-            if region not in ec2_regions:
-                print "WARNING: bad region specified '%s'" % region
-                continue
-
-            print "getting region '%s'" % region
+#            print "getting region '%s'" % region
 
             ec2a = ec2admin(region)
 
@@ -169,11 +169,7 @@ def main(argv=None):
             print
 
     if args.command == 'start':
-        print "starting instance %s" % args.id
-
-        if not check_regions(ec2_regions, args.region):
-            print "ERROR: bad region specified %s" % args.region
-            sys.exit(1)
+        print "starting instance '%s' in region '%s'" % (args.id, args.region)
 
         ec2a = ec2admin(args.region)
         ec2a.start_instance(args.id)
