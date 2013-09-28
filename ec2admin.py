@@ -11,12 +11,10 @@
 # ec2admin.py start us-west-2 i-517d9566
 # ec2admin.py stop  us-west-2 i-517d9566
 # ec2admin.py console us-west-2 i-517d9566
-# ec2admin tag mytag myvalue  i-d863dcb3
-# ec2admin setdns us-west-2 i-517d9566
+# ec2admin.py dns vpn volturius.com us-east-1 i-5f82513b
+# ec2admin.py tag fqdn=vpn.volturius.com us-east-1 i-5f82513b
 
-# TODO:
-#   * instnance tagging
-#   * route53 hooks
+# TODO: get ip after starting instance and setup DNS automatically
 
 import os
 import sys
@@ -60,8 +58,9 @@ class ec2admin(object):
 
         return instances
 
-    def add_tag(self, name, instance):
-        instance.add_tag("Name","{{INSERT NAME}}")
+    def add_tag(self, name, value, id):
+        print "Adding tag"
+        self.instances[id].add_tag(name, value)
 
     def get_instance_info(self, filter, state):
 
@@ -91,9 +90,11 @@ class ec2admin(object):
             else:
                 continue
 
-            response += str(inst) + " "
-            if 'Name' in inst.tags:
-                response += "'%s'\n" % inst.tags['Name']
+            response += str(inst) + "\n"
+
+            for tag in inst.tags:
+                response += "\t'%s':'%s'\n" % (tag, inst.tags[tag])
+
             response += "\t%s\n" % inst.id
             response += "\t%s\n" % inst.image_id
             response += "\t%s\n" % inst.state
@@ -110,9 +111,19 @@ class ec2admin(object):
     def start_instance(self, id):
 
         print "starting %s in region %s" % (id, self.region)
-        self.ec2_conn.start_instances(instance_ids=[id], dry_run=False)
-            
-    
+        instances = self.ec2_conn.start_instances(instance_ids=[id], dry_run=False)
+        instance = self.ec2_conn.get_all_instances(filters={'instance-id' : 'i-xxxxxxxx'})[0].instances[0]
+
+#        print type(instance)
+#        print dir(instance)
+#        print instance.status
+#
+#        if 'ec2admin_FQDN' in self.instances[id].tags:
+#
+#            (host, domain) = self.instances[id].tags['ec2admin_FQDN'].split('.')[-2:]
+#            print "Updating '%s' '%s'" % (host, domain)
+#            self.set_instance_dns(instance.ip_address, host, domain)
+
     def stop_instance(self, id):
 
         print "stopping %s in region %s" % (id, self.region)
@@ -126,19 +137,22 @@ class ec2admin(object):
             output = output.replace("\r", "")
 
         return output
+
     def set_instance_dns(self, id, name, domain):
 
-        ip = self.instances[id].ip_address
-        ttl = 30
-        results = self.r53_conn.get_all_hosted_zones()
-        zone_id = None
-        fqdn = name + '.' + domain
+        ip          = self.instances[id].ip_address
+        ttl         = 30
+        fqdn        = name + '.' + domain
+        zone_id     = None
         delete_rset = None
+        results     = self.r53_conn.get_all_hosted_zones()
+
+        if ip == None:
+            print "ERROR: Couldn't find ip for instance '%s'" % id
+            return
 
         for zone in results['ListHostedZonesResponse']['HostedZones']:
             zid = zone['Id'].replace('/hostedzone/', '')
-#            print zone['Name']
-#            print "\t%s" % zid
             if zone['Name'].strip('.') == domain:
                 zone_id = zid
                 continue
@@ -147,28 +161,18 @@ class ec2admin(object):
             print "ERROR: Couldn't find zone id for '%s'" % domain
             return
 
-        print "zone id: '%s'" % zone_id
-
         sets = self.r53_conn.get_all_rrsets(zone_id, name=fqdn, maxitems=1)
-#        print "SET CHECK %s" % sets
+
         for rset in sets:
 
-#            print "***SET***"
-#            print dir(rset)
-#            print "rset '%s'" % rset
-#            print rset.to_print()
-#            print rset.to_xml()
-#            print "\t'%s': '%s' '%s' @ '%s'" % (rset.name, rset.type, rset.resource_records, rset.ttl)
-
             if rset.name.strip('.') == fqdn:
-                print "WARNING: Deleting FQDN that already exists '%s' '%s'" % (rset.name, rset.resource_records)
                 delete_rset = rset
                 break
 
         changes = boto.route53.record.ResourceRecordSets(self.r53_conn, zone_id)
 
         if delete_rset:
-            print "Deleting exising A record for '%s' '%s'" % (fqdn, delete_rset.resource_records)
+            print "Deleting exising A records for '%s' (%s)" % (fqdn, " ".join(delete_rset.resource_records))
             change_delete = changes.add_change("DELETE", fqdn, 'A')
 
             change_delete.ttl = delete_rset.ttl
@@ -181,7 +185,6 @@ class ec2admin(object):
         change_create.ttl = ttl
 
         result = changes.commit()
-        print result
 
 
 ## Main program here
@@ -219,7 +222,7 @@ def main(argv=None):
     parser_console.add_argument('id', help='instance id')
 
     # create the parser for the "dns" command
-    parser_dns = subparsers.add_parser('dns', help='update dns name in route53')
+    parser_dns = subparsers.add_parser('dns', help='set route53 A record to current instance ip')
     parser_dns.add_argument('host', default=None, help='host name \'mybox\'')
     parser_dns.add_argument('domain', default=None, help='domain name \'example.com\'')
     parser_dns.add_argument('region', help='instance region')
@@ -227,9 +230,9 @@ def main(argv=None):
 
     # create the parser for the "tag" command
     parser_tag = subparsers.add_parser('tag', help='update instance tag')
-    parser_tag.add_argument('name', default=None, help='domain help')
-    parser_tag.add_argument('value', default=None, help='domain help')
-    parser_tag.add_argument('--id', nargs='*', help='instance id')
+    parser_tag.add_argument('tag', default=None, help='domain help')
+    parser_tag.add_argument('region', help='instance region')
+    parser_tag.add_argument('id', help='instance id')
 
     args = parser.parse_args()
 
@@ -281,6 +284,7 @@ def main(argv=None):
             ec2a.start_instance(args.id)
         except boto.exception.EC2ResponseError:
             print "Skipping. Can't start id '%s'" % args.id
+            raise
             return 1
 
     if args.command == 'stop':
@@ -292,7 +296,9 @@ def main(argv=None):
         print ec2a.get_console_text(args.id)
 
     if args.command == 'tag':
-        print "updating tag for instance %s" % args.domain
+        print "updating tag '%s' for instance '%s'" % (args.tag, args.id)
+        (name, value) = args.tag.split('=')
+        ec2a.add_tag(name, value, args.id)
 
     if args.command == 'dns':
         print "updating dns for domain %s" % args.domain
